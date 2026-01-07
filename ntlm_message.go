@@ -13,19 +13,10 @@ const (
 	typeChallengeID = 2
 )
 
-// AV_PAIR IDs from MS-NLMP
+// AV_PAIR IDs from MS-NLMP (only defining the ones we use)
 const (
-	avIDMsvAvEOL             = 0x0000
-	avIDMsvAvNbComputerName  = 0x0001
-	avIDMsvAvNbDomainName    = 0x0002
-	avIDMsvAvDnsComputerName = 0x0003
-	avIDMsvAvDnsDomainName   = 0x0004
-	avIDMsvAvDnsTreeName     = 0x0005
-	avIDMsvAvFlags           = 0x0006
-	avIDMsvAvTimestamp       = 0x0007
-	avIDMsvAvSingleHost      = 0x0008
-	avIDMsvAvTargetName      = 0x0009
-	avIDMsvAvChannelBindings = 0x000A
+	avIDMsvAvEOL             = 0x0000 // End of list marker
+	avIDMsvAvChannelBindings = 0x000A // Channel binding hash (what we inject)
 )
 
 // challengeMessage represents a parsed NTLM CHALLENGE_MESSAGE (Type 2).
