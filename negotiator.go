@@ -18,6 +18,15 @@ type Negotiator struct {
 	DomainNeeded bool
 }
 
+// NewNegotiator creates a new Negotiator with the provided channel bindings.
+// It defaults to DomainNeeded=true, which matches standard Windows behavior.
+func NewNegotiator(cb *GSSChannelBindings) *Negotiator {
+	return &Negotiator{
+		ChannelBindings: cb,
+		DomainNeeded:    true,
+	}
+}
+
 // Negotiate generates the initial NTLM NEGOTIATE_MESSAGE (Type 1).
 // This message is sent to the server to begin the NTLM handshake.
 func (n *Negotiator) Negotiate(domain, workstation string) ([]byte, error) {
@@ -74,5 +83,5 @@ func (n *Negotiator) injectChannelBindings(challenge []byte) ([]byte, error) {
 	cm.injectChannelBindings(cbHash)
 
 	// Re-serialize the modified challenge
-	return cm.bytes()
+	return cm.Bytes()
 }

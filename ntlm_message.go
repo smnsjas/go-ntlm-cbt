@@ -126,8 +126,8 @@ func (cm *challengeMessage) injectChannelBindings(cbHash []byte) {
 	cm.targetInfo = newPairs
 }
 
-// bytes re-serializes the challenge message with modified TargetInfo.
-func (cm *challengeMessage) bytes() ([]byte, error) {
+// Bytes re-serializes the challenge message with modified TargetInfo.
+func (cm *challengeMessage) Bytes() ([]byte, error) {
 	// Serialize new TargetInfo
 	newTargetInfo := serializeAVPairs(cm.targetInfo)
 
@@ -176,15 +176,19 @@ func (cm *challengeMessage) bytes() ([]byte, error) {
 
 // serializeAVPairs converts AV_PAIR slice back to wire format.
 func serializeAVPairs(pairs []avPair) []byte {
-	var buf bytes.Buffer
-
+	// Calculate size first to avoid reallocations
+	size := 0
 	for _, pair := range pairs {
-		// binary.Write to bytes.Buffer never fails
-		_ = binary.Write(&buf, binary.LittleEndian, pair.ID)
-		// #nosec G115 -- AV_PAIR values are bounded by NTLM spec (<64KB)
-		_ = binary.Write(&buf, binary.LittleEndian, uint16(len(pair.Value)))
-		_, _ = buf.Write(pair.Value)
+		size += 2 + 2 + len(pair.Value) // ID + Len + Value
 	}
 
-	return buf.Bytes()
+	buf := make([]byte, 0, size)
+	for _, pair := range pairs {
+		buf = binary.LittleEndian.AppendUint16(buf, pair.ID)
+		// #nosec G115 -- AV_PAIR values are bounded by NTLM spec (<64KB)
+		buf = binary.LittleEndian.AppendUint16(buf, uint16(len(pair.Value)))
+		buf = append(buf, pair.Value...)
+	}
+
+	return buf
 }
