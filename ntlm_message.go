@@ -174,7 +174,9 @@ func (cm *challengeMessage) bytes() ([]byte, error) {
 	// Update TargetInfo length fields in the header
 	// TargetInfo descriptor is at offset 40: Len (2), MaxLen (2), Offset (4)
 	if len(result) >= 48 {
+		// #nosec G115 -- newLen is bounded by NTLM message size (<64KB)
 		binary.LittleEndian.PutUint16(result[40:42], uint16(newLen))
+		// #nosec G115 -- newLen is bounded by NTLM message size (<64KB)
 		binary.LittleEndian.PutUint16(result[42:44], uint16(newLen))
 	}
 
@@ -186,9 +188,11 @@ func serializeAVPairs(pairs []avPair) []byte {
 	var buf bytes.Buffer
 
 	for _, pair := range pairs {
-		binary.Write(&buf, binary.LittleEndian, pair.ID)
-		binary.Write(&buf, binary.LittleEndian, uint16(len(pair.Value)))
-		buf.Write(pair.Value)
+		// binary.Write to bytes.Buffer never fails
+		_ = binary.Write(&buf, binary.LittleEndian, pair.ID)
+		// #nosec G115 -- AV_PAIR values are bounded by NTLM spec (<64KB)
+		_ = binary.Write(&buf, binary.LittleEndian, uint16(len(pair.Value)))
+		_, _ = buf.Write(pair.Value)
 	}
 
 	return buf.Bytes()

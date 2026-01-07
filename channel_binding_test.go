@@ -2,36 +2,52 @@ package ntlmcbt
 
 import (
 	"bytes"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/hex"
-	"encoding/pem"
+	"math/big"
 	"testing"
+	"time"
 )
 
-// Test certificate for reproducible testing.
-// Generated with: openssl req -x509 -newkey rsa:2048 -keyout /dev/null -out /dev/null -days 1 -nodes -subj "/CN=test"
-// then captured the DER encoding.
-var testCertPEM = `-----BEGIN CERTIFICATE-----
-MIIBkTCB+wIJAKHBxTk8SlFAMA0GCSqGSIb3DQEBCwUAMBExDzANBgNVBAMMBnRl
-c3RDTjAeFw0yNTAxMDEwMDAwMDBaFw0yNjAxMDEwMDAwMDBaMBExDzANBgNVBAMM
-BnRlc3RDTjBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC7o4qToilsJIy6HWGq6qzE
-RVhnhPyq7h3GAHB1xrQ+lzEP3oVQWTFWqFYMZ3FUYFxNsLKMG5lDLv5bWpqELxvF
-AgMBAAGjUzBRMB0GA1UdDgQWBBR3VZ3JlN5mfN3tK3N2dH1QXpS/9DAfBgNVHSME
-GDAWgBR3VZ3JlN5mfN3tK3N2dH1QXpS/9DAPBgNVHRMBAf8EBTADAQH/MA0GCSqG
-SIb3DQEBCwUAA0EAh1g3N1YXw3L2kFGPmJGl0qzibwXeFQjGGhkGQIq6X/Wnb+XS
-zBbN4bqCvw3LY8i8RqS7a8vFIGh+4npAIpBIQQ==
------END CERTIFICATE-----`
-
-func getTestCert(t *testing.T) *x509.Certificate {
+// generateTestCert creates a self-signed test certificate for testing.
+func generateTestCert(t *testing.T) *x509.Certificate {
 	t.Helper()
-	block, _ := pem.Decode([]byte(testCertPEM))
-	if block == nil {
-		t.Fatal("failed to decode PEM")
+
+	// Generate RSA key
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", err)
 	}
-	cert, err := x509.ParseCertificate(block.Bytes)
+
+	// Create certificate template
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "test",
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		SignatureAlgorithm:    x509.SHA256WithRSA,
+	}
+
+	// Self-sign the certificate
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatalf("failed to create certificate: %v", err)
+	}
+
+	// Parse it back to get a Certificate struct
+	cert, err := x509.ParseCertificate(certDER)
 	if err != nil {
 		t.Fatalf("failed to parse certificate: %v", err)
 	}
+
 	return cert
 }
 
@@ -107,13 +123,35 @@ func TestGSSChannelBindings_MD5Hash(t *testing.T) {
 }
 
 func TestComputeTLSServerEndpoint_HashAlgorithm(t *testing.T) {
-	// We can't easily test different signature algorithms without
-	// generating certificates on the fly, but we can verify the
-	// function returns valid channel bindings.
+	cert := generateTestCert(t)
 
-	// Create a minimal test - just verify the function doesn't panic
-	// and returns properly formatted output.
+	cb := ComputeTLSServerEndpoint(cert)
 
-	// Note: A full test would require generating test certificates
-	// with different signature algorithms.
+	// Verify channel bindings were created
+	if cb == nil {
+		t.Fatal("ComputeTLSServerEndpoint returned nil")
+	}
+
+	// Verify application data starts with the expected prefix
+	prefix := []byte("tls-server-end-point:")
+	if len(cb.ApplicationData) <= len(prefix) {
+		t.Errorf("application data too short: %d bytes", len(cb.ApplicationData))
+	}
+
+	if !bytes.HasPrefix(cb.ApplicationData, prefix) {
+		t.Errorf("application data missing prefix, got: %s", cb.ApplicationData[:min(30, len(cb.ApplicationData))])
+	}
+
+	// Test certificate uses SHA256WithRSA, so hash should be SHA-256 (32 bytes)
+	// Application data = prefix (21 bytes) + hash
+	expectedLen := len(prefix) + 32 // SHA-256 = 32 bytes
+	if len(cb.ApplicationData) != expectedLen {
+		t.Errorf("expected application data length %d, got %d", expectedLen, len(cb.ApplicationData))
+	}
+
+	// Verify MD5 hash is 16 bytes
+	md5Hash := cb.MD5Hash()
+	if len(md5Hash) != 16 {
+		t.Errorf("expected 16-byte MD5 hash, got %d bytes", len(md5Hash))
+	}
 }

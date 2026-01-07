@@ -2,7 +2,7 @@ package ntlmcbt
 
 import (
 	"crypto"
-	"crypto/md5"
+	"crypto/md5" // #nosec G501 -- MD5 required by NTLM protocol (MS-NLMP)
 	"crypto/x509"
 	"encoding/binary"
 )
@@ -34,15 +34,18 @@ func (cb *GSSChannelBindings) Pack() []byte {
 
 	// Initiator
 	buf = binary.LittleEndian.AppendUint32(buf, cb.InitiatorAddrType)
+	// #nosec G115 -- address lengths are bounded by GSS-API spec
 	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(cb.InitiatorAddress)))
 	buf = append(buf, cb.InitiatorAddress...)
 
 	// Acceptor
 	buf = binary.LittleEndian.AppendUint32(buf, cb.AcceptorAddrType)
+	// #nosec G115 -- address lengths are bounded by GSS-API spec
 	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(cb.AcceptorAddress)))
 	buf = append(buf, cb.AcceptorAddress...)
 
 	// Application Data
+	// #nosec G115 -- application data length bounded by TLS cert hash size
 	buf = binary.LittleEndian.AppendUint32(buf, uint32(len(cb.ApplicationData)))
 	buf = append(buf, cb.ApplicationData...)
 
@@ -51,7 +54,9 @@ func (cb *GSSChannelBindings) Pack() []byte {
 
 // MD5Hash returns the MD5 hash of the packed channel bindings.
 // This is the value used in NTLM's MsvAvChannelBindings AV_PAIR.
+// Note: MD5 is mandated by the MS-NLMP specification for channel bindings.
 func (cb *GSSChannelBindings) MD5Hash() []byte {
+	// #nosec G401 -- MD5 required by NTLM protocol (MS-NLMP Section 3.1.5.1.2)
 	hasher := md5.New()
 	hasher.Write(cb.Pack())
 	return hasher.Sum(nil)
