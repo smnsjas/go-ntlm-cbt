@@ -28,3 +28,7 @@ Thumbs.db
 
 # Dependency directories
 vendor/
+
+# CodeQL
+codeql-db/
+*.sarif
